@@ -6540,7 +6540,7 @@ class CGVHD_DataSets(FixtureParameterFactory):
             _, km_y, km_ci = kaplan_meier_estimator(event > 0, ftime, conf_type="log-log")
 
             true_y = [1.0 - km_y]
-            true_ci = [1.0 - km_ci]
+            true_ci = [1.0 - km_ci[::-1]]
             for _, subet in data.groupby("Failcode"):
                 true_y.append(subet["CIF"].to_numpy())
                 true_ci.append(np.stack((subet["CIF_LCL"].to_numpy(), subet["CIF_UCL"].to_numpy())))
@@ -6556,6 +6556,18 @@ class CGVHD_DataSets(FixtureParameterFactory):
 
 
 class TestCumIncCompetingRisks:
+    @staticmethod
+    def test_total_risk_ci_bound_order():
+        _, bmt = load_bmt()
+        event, time = bmt["status"], bmt["ftime"]
+        _, incidence, ci = cumulative_incidence_competing_risks(event, time, conf_type="log-log")
+        _, survival, survival_ci = kaplan_meier_estimator(event > 0, time, conf_type="log-log")
+
+        assert_allclose(incidence[0], 1 - survival)
+        assert_allclose(ci[0, 0], 1 - survival_ci[1])
+        assert_allclose(ci[0, 1], 1 - survival_ci[0])
+        assert np.all(ci[0, 0] <= ci[0, 1])
+
     @staticmethod
     @pytest.mark.parametrize("event, time, true_x, true_y", SimpleDataBMTCases().get_cases())
     def test_wrong_dtype(event, time, true_x, true_y):
