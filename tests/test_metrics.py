@@ -627,7 +627,7 @@ class UnoCAucCases(BaseUnoCAucCases):
     def data_two_times(self):
         y_train, estimate = self.uno_auc_data_15
         times = [15, 66]
-        iauc = 0.3943949
+        iauc = 0.45
         expected = np.array([0.3030303, 0.4500000])
 
         return y_train, y_train, estimate, times, expected, iauc
@@ -638,7 +638,7 @@ class UnoCAucCases(BaseUnoCAucCases):
         y_train = y_train.astype([("event", bool), ("time", int)])
         estimate = (np.array(estimate) * 1000).astype(int)
         times = np.array([1500, 6600], dtype=int)
-        iauc = 0.3943949
+        iauc = 0.45
         expected = np.array([0.3030303, 0.4500000])
 
         return y_train, y_train, estimate, times, expected, iauc
@@ -646,7 +646,7 @@ class UnoCAucCases(BaseUnoCAucCases):
     def data_min_to_max_times(self):
         y_train, estimate = self.uno_auc_data_15
         times = (y_train["time"].min(), 15, 66, y_train["time"].max() - 1e-6)
-        iauc = 0.3999539
+        iauc = 0.3767421292
         expected = np.array([0.6428571, 0.3030303, 0.4500000, 0.3162996])
 
         return y_train, y_train, estimate, times, expected, iauc
@@ -654,7 +654,7 @@ class UnoCAucCases(BaseUnoCAucCases):
     def data_train_test(self):
         y_train, y_test, estimate = self.uno_auc_data_20
         times = [15, 66]
-        iauc = 0.385509
+        iauc = 0.435706085
         expected = np.array([0.3030303, 0.4357061])
 
         return y_train, y_test, estimate, times, expected, iauc
@@ -663,7 +663,7 @@ class UnoCAucCases(BaseUnoCAucCases):
         y_train, y_test, estimate = self.uno_auc_data_20
         y_test["time"][0] = y_test["time"][1]
         times = [15, 66]
-        iauc = 0.4204885
+        iauc = 0.435706085
         expected = np.array([0.3750000, 0.4357061])
 
         return y_train, y_test, estimate, times, expected, iauc
@@ -672,7 +672,7 @@ class UnoCAucCases(BaseUnoCAucCases):
         y_train, y_test, estimate = self.uno_auc_data_20
         estimate[0] = estimate[-1]
         times = [15, 66]
-        iauc = 0.495604291
+        iauc = 0.5390355913
         expected = np.array([0.4242424, 0.539036])
 
         return y_train, y_test, estimate, times, expected, iauc
@@ -682,7 +682,7 @@ class UnoCAucCases(BaseUnoCAucCases):
         o = np.argsort(estimate)
         estimate[o[0]] = estimate[o[1]]
         times = [15, 66]
-        iauc = 0.385509
+        iauc = 0.435706085
         expected = np.array([0.3030303, 0.4357061])
 
         return y_train, y_test, estimate, times, expected, iauc
@@ -692,7 +692,7 @@ class UnoCAucCases(BaseUnoCAucCases):
         o = np.argsort(estimate)
         estimate[o[-1]] = estimate[o[-2]]
         times = [15, 66]
-        iauc = 0.374134
+        iauc = 0.4174081515
         expected = np.array([0.3030303, 0.4174082])
 
         return y_train, y_test, estimate, times, expected, iauc
@@ -700,15 +700,15 @@ class UnoCAucCases(BaseUnoCAucCases):
     def data_time_dependent(self):
         y_train, y_test, estimate = self.uno_auc_time_dependent_20
         times = [15, 30, 72]
-        iauc = 0.5522067
+        iauc = 0.636679362
         expected = np.array([0.3636364, 0.5247813, 0.7603000])
 
         return y_train, y_test, estimate, times, expected, iauc
 
     def _compute_roc_auc(self, y, times, estimate):
         expected_auc = np.array([roc_auc_score(y["time"] > t, e) for t, e in zip(times, estimate)])
-        km_delta = np.array([1 - 0.8, 0.8 - 0.5, 0.5 - 0.2])
-        expected_iauc = np.sum(km_delta * expected_auc) / 0.8
+        km_delta = np.array([0.8 - 0.5, 0.5 - 0.2])
+        expected_iauc = np.sum(km_delta * expected_auc[1:]) / (0.8 - 0.2)
 
         return expected_auc, expected_iauc
 
@@ -758,7 +758,7 @@ class UnoCAucCases(BaseUnoCAucCases):
         estimate = estimate[300:]
         times = (200, 400, 600, 800, 1000, 1200, 1400)
 
-        iauc = 0.8045058
+        iauc = 0.8365267423
         expected = np.array([0.7720669, 0.7765915, 0.7962623, 0.8759295, 0.8759295, 0.8759513, 0.9147647])
         return y_train, y_test, estimate, times, expected, iauc
 
@@ -776,6 +776,22 @@ def test_uno_auc(y_train, y_test, estimate, times, expect_auc, expect_iauc):
         assert_almost_equal(iauc, expect_iauc)
     else:
         assert iauc == pytest.approx(expect_iauc)
+
+
+def test_uno_auc_summary_excludes_events_before_first_time():
+    cases = UnoCAucCases()
+    y_train, y_test, estimate, times, _, _ = cases.data_time_dependent_without_censoring()
+    auc, mean_auc = cumulative_dynamic_auc(y_train, y_test, estimate, times)
+
+    # Two events precede day 10. Three occur in each of (10, 14] and (14, 40].
+    assert mean_auc == pytest.approx((auc[1] + auc[2]) / 2)
+
+
+def test_uno_auc_summary_requires_events_in_interval():
+    cases = UnoCAucCases()
+    y = cases.y_roc_auc
+    with pytest.raises(ValueError, match="no events observed in time interval"):
+        cumulative_dynamic_auc(y, y, -y["time"], [16, 17])
 
 
 class UnoCAucFailureCases(BaseUnoCAucCases):
