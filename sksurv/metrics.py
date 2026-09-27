@@ -10,10 +10,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""
-Metrics to evaluate survival models.
-"""
-
 import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.utils.metaestimators import available_if
@@ -152,8 +148,7 @@ def _estimate_concordance_index(event_indicator, event_time, estimate, weights, 
 
 
 def concordance_index_censored(event_indicator, event_time, estimate, tied_tol=1e-8):
-    """
-    Measure the agreement between a predicted risk score and the actual time-to-event.
+    """Measures the agreement between a predicted risk score and the actual time-to-event.
 
     The concordance index is a measure of rank correlation between predicted risk
     scores and observed time points. It is defined as the proportion of all comparable
@@ -201,15 +196,15 @@ def concordance_index_censored(event_indicator, event_time, estimate, tied_tol=1
     tied_time : int
         The number of comparable pairs with tied survival times.
 
-    See Also
-    --------
-    concordance_index_ipcw
-        A less biased estimator of the concordance index.
-
     Notes
     -----
     This metric expects risk scores, which are typically returned by ``estimator.predict(X)``.
     It *does not accept* survival probabilities.
+
+    See also
+    --------
+    concordance_index_ipcw
+        A less biased estimator of the concordance index.
 
     References
     ----------
@@ -226,8 +221,7 @@ def concordance_index_censored(event_indicator, event_time, estimate, tied_tol=1
 
 
 def concordance_index_ipcw(survival_train, survival_test, estimate, tau=None, tied_tol=1e-8):
-    r"""
-    Concordance index for right-censored data based on inverse probability of censoring weights.
+    r"""Concordance index for right-censored data based on inverse probability of censoring weights.
 
     This is an alternative to the estimator in :func:`concordance_index_censored`
     that does not depend on the distribution of censoring times in the test data.
@@ -294,7 +288,12 @@ def concordance_index_ipcw(survival_train, survival_test, estimate, tau=None, ti
     tied_time : int
         The number of comparable pairs with tied survival times.
 
-    See Also
+    Notes
+    -----
+    This metric expects risk scores, which are typically returned by ``estimator.predict(X)``.
+    It *does not accept* survival probabilities.
+
+    See also
     --------
     concordance_index_censored
         A simpler, but potentially biased, estimator of the concordance index.
@@ -302,11 +301,6 @@ def concordance_index_ipcw(survival_train, survival_test, estimate, tau=None, ti
         A wrapper class that uses :func:`concordance_index_ipcw`
         in its ``score`` method instead of the default
         :func:`concordance_index_censored`.
-
-    Notes
-    -----
-    This metric expects risk scores, which are typically returned by ``estimator.predict(X)``.
-    It *does not accept* survival probabilities.
 
     References
     ----------
@@ -339,8 +333,7 @@ def concordance_index_ipcw(survival_train, survival_test, estimate, tau=None, ti
 
 
 def cumulative_dynamic_auc(survival_train, survival_test, estimate, times, tied_tol=1e-8):
-    r"""
-    Compute the cumulative/dynamic area under the ROC curve (AUC) for right-censored data.
+    r"""Computes the cumulative/dynamic area under the ROC curve (AUC) for right-censored data.
 
     This metric evaluates a model's performance at specific time points.
     The cumulative/dynamic AUC at time :math:`t` quantifies how well a model can
@@ -421,7 +414,7 @@ def cumulative_dynamic_auc(survival_train, survival_test, estimate, times, tied_
         where ``True`` indicates an event and ``False`` indicates right-censoring.
         The second field is a float with the time of event or time of censoring.
     estimate : array-like, shape = (n_samples,) or (n_samples, n_times)
-        Predicted risk scores for the test data (e.g., from ``estimator.predict(X)``).
+        Predicted risk scores for the test data (e.g., from ``estimator.predict(X)``.
         A higher value indicates a higher risk of experiencing an event.
         If a 1D array is provided, the same risk score is used for all time points.
         If a 2D array is provided, ``estimate[:, j]`` is used for the :math:`j`-th
@@ -441,18 +434,18 @@ def cumulative_dynamic_auc(survival_train, survival_test, estimate, times, tied_
     mean_auc : float
         The mean cumulative/dynamic AUC over the specified time range ``(times[0], times[-1])``.
 
-    See Also
-    --------
-    as_cumulative_dynamic_auc_scorer
-        A wrapper class that uses :func:`cumulative_dynamic_auc`
-        in its ``score`` method instead of the default
-        :func:`concordance_index_censored`.
-
     Notes
     -----
     This metric expects risk scores, which are typically returned by ``estimator.predict(X)``
     (for time-independent risks), or ``estimator.predict_cumulative_hazard_function(X)``
     (for time-dependent risks). It *does not accept* survival probabilities.
+
+    See also
+    --------
+    as_cumulative_dynamic_auc_scorer
+        A wrapper class that uses :func:`cumulative_dynamic_auc`
+        in its ``score`` method instead of the default
+        :func:`concordance_index_censored`.
 
     References
     ----------
@@ -526,16 +519,18 @@ def cumulative_dynamic_auc(survival_train, survival_test, estimate, times, tied_
         surv.fit(survival_test)
         s_times = surv.predict_proba(times)
         # compute integral of AUC over survival function
-        d = -np.diff(np.r_[1.0, s_times])
-        integral = (scores * d).sum()
-        mean_auc = integral / (1.0 - s_times[-1])
+        d = -np.diff(s_times)
+        event_mass = s_times[0] - s_times[-1]
+        if event_mass == 0:
+            raise ValueError("no events observed in time interval")
+        integral = (scores[1:] * d).sum()
+        mean_auc = integral / event_mass
 
     return scores, mean_auc
 
 
 def brier_score(survival_train, survival_test, estimate, times):
-    r"""
-    The time-dependent Brier score for right-censored data.
+    r"""The time-dependent Brier score for right-censored data.
 
     The time-dependent Brier score measures the inaccuracy of
     predicted survival probabilities at a given time point.
@@ -569,7 +564,7 @@ def brier_score(survival_train, survival_test, estimate, times):
 
     where :math:`\hat{\pi}(t | \mathbf{x})` is the predicted survival probability
     up to the time point :math:`t` for a feature vector :math:`\mathbf{x}`,
-    and :math:`1/\hat{G}(t)` is an inverse probability of censoring weight.
+    and :math:`1/\hat{G}(t)` is a inverse probability of censoring weight.
 
     See the :ref:`User Guide </user_guide/evaluating-survival-models.ipynb#Time-dependent-Brier-Score>`
     and [1]_ for details.
@@ -604,22 +599,12 @@ def brier_score(survival_train, survival_test, estimate, times):
     brier_scores : ndarray, shape = (n_times,)
         The Brier score at each time point in ``times``.
 
-    See Also
-    --------
-    integrated_brier_score
-        Computes the average Brier score over all time points.
-
     Notes
     -----
     This metric expects survival probabilities, which are typically returned by
     ``estimator.predict_survival_function(X)``.
     It *does not accept* risk scores.
 
-    References
-    ----------
-    .. [1] E. Graf, C. Schmoor, W. Sauerbrei, and M. Schumacher,
-           "Assessment and comparison of prognostic classification schemes for survival data,"
-           Statistics in Medicine, vol. 18, no. 17-18, pp. 2529–2545, 1999.
     Examples
     --------
     >>> from sksurv.datasets import load_gbsg2
@@ -650,6 +635,17 @@ def brier_score(survival_train, survival_test, estimate, times):
     >>> times, score = brier_score(y, y, preds, 1825)
     >>> print(score)
     [0.20881843]
+
+    See also
+    --------
+    integrated_brier_score
+        Computes the average Brier score over all time points.
+
+    References
+    ----------
+    .. [1] E. Graf, C. Schmoor, W. Sauerbrei, and M. Schumacher,
+           "Assessment and comparison of prognostic classification schemes for survival data,"
+           Statistics in Medicine, vol. 18, no. 17-18, pp. 2529–2545, 1999.
     """
     test_event, test_time = check_y_survival(survival_test)
     estimate, times = _check_estimate_2d(estimate, test_time, times, estimator="brier_score")
@@ -681,8 +677,7 @@ def brier_score(survival_train, survival_test, estimate, times):
 
 
 def integrated_brier_score(survival_train, survival_test, estimate, times):
-    r"""
-    Compute the integrated Brier score (IBS).
+    r"""Computes the integrated Brier score (IBS).
 
     The IBS is an overall measure of the model's performance across all
     available time points :math:`t_1 \leq t \leq t_\text{max}`.
@@ -694,9 +689,10 @@ def integrated_brier_score(survival_train, survival_test, estimate, times):
 
     .. math::
 
-        \mathrm{IBS} = \frac{1}{t_\text{max} - t_1} \int_{t_1}^{t_\text{max}} \mathrm{BS}^c(t) \, d t
+        \mathrm{IBS} = \int_{t_1}^{t_\text{max}} \mathrm{BS}^c(t) d w(t)
 
-    where the integral is estimated via the trapezoidal rule.
+    where the weighting function is :math:`w(t) = t / t_\text{max}`.
+    The integral is estimated via the trapezoidal rule.
 
     See the :ref:`User Guide </user_guide/evaluating-survival-models.ipynb#Time-dependent-Brier-Score>`
     and [1]_ for further details.
@@ -726,30 +722,14 @@ def integrated_brier_score(survival_train, survival_test, estimate, times):
 
     Returns
     -------
-    float
+    ibs : float
         The integrated Brier score.
-
-    See Also
-    --------
-    brier_score
-        Computes the Brier score at specified time points.
-
-    as_integrated_brier_score_scorer
-        Wrapper class that uses :func:`integrated_brier_score`
-        in its ``score`` method instead of the default
-        :func:`concordance_index_censored`.
 
     Notes
     -----
     This metric expects survival probabilities, which are typically returned by
     ``estimator.predict_survival_function(X)``.
     It *does not accept* risk scores.
-
-    References
-    ----------
-    .. [1] E. Graf, C. Schmoor, W. Sauerbrei, and M. Schumacher,
-           "Assessment and comparison of prognostic classification schemes for survival data,"
-           Statistics in Medicine, vol. 18, no. 17-18, pp. 2529–2545, 1999.
 
     Examples
     --------
@@ -783,6 +763,22 @@ def integrated_brier_score(survival_train, survival_test, estimate, times):
     >>> score = integrated_brier_score(y, y, preds, times)
     >>> print(round(score, 4))
     0.1816
+
+    See also
+    --------
+    brier_score
+        Computes the Brier score at specified time points.
+
+    as_integrated_brier_score_scorer
+        Wrapper class that uses :func:`integrated_brier_score`
+        in its ``score`` method instead of the default
+        :func:`concordance_index_censored`.
+
+    References
+    ----------
+    .. [1] E. Graf, C. Schmoor, W. Sauerbrei, and M. Schumacher,
+           "Assessment and comparison of prognostic classification schemes for survival data,"
+           Statistics in Medicine, vol. 18, no. 17-18, pp. 2529–2545, 1999.
     """
     # Computing the brier scores
     times, brier_scores = brier_score(survival_train, survival_test, estimate, times)
@@ -797,11 +793,9 @@ def integrated_brier_score(survival_train, survival_test, estimate, times):
 
 
 def _estimator_has(attr):
-    """
-    Check that meta_estimator has `attr`.
+    """Check that meta_estimator has `attr`.
 
-    Used together with `available_if`.
-    """
+    Used together with `available_if`."""
 
     def check(self):
         # raise original `AttributeError` if `attr` does not exist
@@ -838,8 +832,7 @@ class _ScoreOverrideMixin:
         return predict_func(X)
 
     def score(self, X, y):
-        """
-        Return the score on the given data.
+        """Returns the score on the given data.
 
         Parameters
         ----------
@@ -853,8 +846,7 @@ class _ScoreOverrideMixin:
 
         Returns
         -------
-        float
-            Scoring metric.
+        score : float
         """
         estimate = self._do_predict(X)
         score = self._score_func(
@@ -869,8 +861,7 @@ class _ScoreOverrideMixin:
 
     @available_if(_estimator_has("predict"))
     def predict(self, X):
-        """
-        Call predict on the estimator.
+        """Call predict on the estimator.
 
         Only available if estimator supports ``predict``.
 
@@ -885,8 +876,7 @@ class _ScoreOverrideMixin:
 
     @available_if(_estimator_has("predict_cumulative_hazard_function"))
     def predict_cumulative_hazard_function(self, X):
-        """
-        Call predict_cumulative_hazard_function on the estimator.
+        """Call predict_cumulative_hazard_function on the estimator.
 
         Only available if estimator supports ``predict_cumulative_hazard_function``.
 
@@ -901,8 +891,7 @@ class _ScoreOverrideMixin:
 
     @available_if(_estimator_has("predict_survival_function"))
     def predict_survival_function(self, X):
-        """
-        Call predict_survival_function on the estimator.
+        """Call predict_survival_function on the estimator.
 
         Only available if estimator supports ``predict_survival_function``.
 
@@ -917,8 +906,7 @@ class _ScoreOverrideMixin:
 
 
 class as_cumulative_dynamic_auc_scorer(_ScoreOverrideMixin, BaseEstimator):
-    """
-    Wrap an estimator to use :func:`cumulative_dynamic_auc` as ``score`` function.
+    """Wraps an estimator to use :func:`cumulative_dynamic_auc` as ``score`` function.
 
     See the :ref:`User Guide </user_guide/evaluating-survival-models.ipynb#Using-Metrics-in-Hyper-parameter-Search>`
     for using it for hyper-parameter optimization.
@@ -940,10 +928,9 @@ class as_cumulative_dynamic_auc_scorer(_ScoreOverrideMixin, BaseEstimator):
     estimator_ : estimator
         Estimator that was fit.
 
-    See Also
+    See also
     --------
     cumulative_dynamic_auc
-        Function being wrapped.
     """
 
     def __init__(self, estimator, times, tied_tol=1e-8):
@@ -959,8 +946,7 @@ class as_cumulative_dynamic_auc_scorer(_ScoreOverrideMixin, BaseEstimator):
 
 
 class as_concordance_index_ipcw_scorer(_ScoreOverrideMixin, BaseEstimator):
-    r"""
-    Wrap an estimator to use :func:`concordance_index_ipcw` as ``score`` function.
+    r"""Wraps an estimator to use :func:`concordance_index_ipcw` as ``score`` function.
 
     See the :ref:`User Guide </user_guide/evaluating-survival-models.ipynb#Using-Metrics-in-Hyper-parameter-Search>`
     for using it for hyper-parameter optimization.
@@ -985,10 +971,9 @@ class as_concordance_index_ipcw_scorer(_ScoreOverrideMixin, BaseEstimator):
     estimator_ : estimator
         Estimator that was fit.
 
-    See Also
+    See also
     --------
     concordance_index_ipcw
-        Function being wrapped.
     """
 
     def __init__(self, estimator, tau=None, tied_tol=1e-8):
@@ -1004,8 +989,7 @@ class as_concordance_index_ipcw_scorer(_ScoreOverrideMixin, BaseEstimator):
 
 
 class as_integrated_brier_score_scorer(_ScoreOverrideMixin, BaseEstimator):
-    """
-    Wrap an estimator to use the negative of :func:`integrated_brier_score` as ``score`` function.
+    """Wraps an estimator to use the negative of :func:`integrated_brier_score` as ``score`` function.
 
     The estimator needs to be able to estimate survival functions via
     a ``predict_survival_function`` method.
@@ -1026,10 +1010,9 @@ class as_integrated_brier_score_scorer(_ScoreOverrideMixin, BaseEstimator):
     estimator_ : estimator
         Estimator that was fit.
 
-    See Also
+    See also
     --------
     integrated_brier_score
-        Function being wrapped.
     """
 
     def __init__(self, estimator, times):
